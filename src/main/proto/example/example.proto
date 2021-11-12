@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+import "google/api/annotations.proto";
+
+package example;
+
+service HelloService {
+  rpc Hello (HelloRequest) returns (HelloReply) {
+    option (google.api.http) = {
+      get: "/v1/hello/{name}"
+    };
+  }
+
+  rpc Hellos (stream HelloRequest) returns (stream HelloReply) {
+    option (google.api.http) = {
+      post: "/v1/hellos"
+    };
+  }
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string response = 1;
+}
