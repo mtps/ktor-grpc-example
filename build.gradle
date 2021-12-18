@@ -39,15 +39,20 @@ repositories {
 }
 
 ext {
-    protocVersion = "3.18.1"
-    grpcVersion = "1.39.0"
+    protocVersion = '3.19.1'
+    grpcVersion = '1.42.1'
     grpcKotlinVersion = "1.2.0"
+    koinVersion = "3.1.4"
+}
+
+application {
+    mainClassName = "com.github.mtps.ktor.MainKt"
 }
 
 dependencies {
-    implementation "io.ktor:ktor-server-netty:1.6.5"
-    implementation "ch.qos.logback:logback-classic:1.2.6"
-    testImplementation 'junit:junit:4.13.2'
+    implementation 'io.ktor:ktor-server-netty:1.6.7'
+    implementation "io.insert-koin:koin-core:$koinVersion"
+    implementation 'ch.qos.logback:logback-classic:1.2.8'
 
     implementation "io.grpc:grpc-api:$grpcVersion"
     implementation "io.grpc:grpc-netty:$grpcVersion"
@@ -57,6 +62,9 @@ dependencies {
     implementation "io.grpc:grpc-services:$grpcVersion"
     implementation "com.google.protobuf:protobuf-java-util:$protocVersion"
     implementation "com.google.protobuf:protobuf-kotlin:$protocVersion"
+
+    testImplementation "io.insert-koin:koin-test:$koinVersion"
+    testImplementation 'junit:junit:4.13.2'
 }
 
 protobuf {

@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
 
 package example;
 
@@ -16,6 +17,12 @@ service HelloService {
       post: "/v1/hellos"
     };
   }
+
+  rpc SaveHello(HelloSaveRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/hello/{name}"
+    };
+  }
 }
 
 message HelloRequest {
@@ -24,4 +31,9 @@ message HelloRequest {
 
 message HelloReply {
   string response = 1;
+}
+
+message HelloSaveRequest {
+  string name = 1;
+  string value = 2;
 }
