@@ -9,17 +9,12 @@ import io.ktor.features.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-interface HelloRepository {
-    operator fun get(key: String): String?
-    operator fun set(key: String, value: String)
-}
-
 class HelloService(private val helloRepository: HelloRepository) : HelloServiceCoroutineImplBase() {
-    private val reply = { request: HelloRequest ->
-        val item = helloRepository[request.name]
+    private suspend fun reply(request: HelloRequest): HelloReply {
+        val item = helloRepository.get(request.name)
             ?: throw NotFoundException()
 
-        HelloReply.newBuilder()
+        return HelloReply.newBuilder()
             .setResponse("hello ${request.name}!! -> $item")
             .build()
     }
@@ -33,7 +28,7 @@ class HelloService(private val helloRepository: HelloRepository) : HelloServiceC
     }
 
     override suspend fun saveHello(request: Example.HelloSaveRequest): Empty {
-        helloRepository[request.name] = request.value
+        helloRepository.set(request.name, request.value)
         return Empty.getDefaultInstance()
     }
 }

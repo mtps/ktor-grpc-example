@@ -50,19 +50,29 @@ application {
 }
 
 dependencies {
+    // HTTP
     implementation 'io.ktor:ktor-server-netty:1.6.7'
+
+    // DI
     implementation "io.insert-koin:koin-core:$koinVersion"
     implementation 'ch.qos.logback:logback-classic:1.2.8'
 
+    // R2DBC - (async jdbc)
+    implementation 'com.github.jasync-sql:jasync-postgresql:2.0.4'
+
+    // GRPC
     implementation "io.grpc:grpc-api:$grpcVersion"
     implementation "io.grpc:grpc-netty:$grpcVersion"
     implementation "io.grpc:grpc-protobuf:$grpcVersion"
     implementation "io.grpc:grpc-stub:$grpcVersion"
     implementation "io.grpc:grpc-kotlin-stub:$grpcKotlinVersion"
     implementation "io.grpc:grpc-services:$grpcVersion"
+
+    // Protobuf
     implementation "com.google.protobuf:protobuf-java-util:$protocVersion"
     implementation "com.google.protobuf:protobuf-kotlin:$protocVersion"
 
+    // ~~ Test ~~
     testImplementation "io.insert-koin:koin-test:$koinVersion"
     testImplementation 'junit:junit:4.13.2'
 }

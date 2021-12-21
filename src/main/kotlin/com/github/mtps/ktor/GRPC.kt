@@ -1,75 +1,102 @@
 package com.github.mtps.ktor
 
-import com.google.protobuf.empty
 import io.grpc.BindableService
 import io.grpc.Server
 import io.grpc.ServerBuilder
-import io.grpc.protobuf.services.ProtoReflectionService
-import io.ktor.application.Application
-import io.ktor.application.ApplicationStarted
-import io.ktor.application.ApplicationStarting
-import io.ktor.application.ApplicationStopPreparing
-import io.ktor.application.ApplicationStopped
-import io.ktor.application.ApplicationStopping
-import io.ktor.server.engine.ApplicationEngine
-import io.ktor.server.engine.ApplicationEngineEnvironment
-import io.ktor.server.engine.ApplicationEngineFactory
-import io.ktor.server.engine.BaseApplicationEngine
-import io.ktor.server.engine.EngineAPI
-import io.ktor.server.engine.embeddedServer as ktorServer
+import io.ktor.application.*
+import io.ktor.features.*
+import io.ktor.http.*
+import io.ktor.server.engine.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.GlobalScope
+import org.slf4j.LoggerFactory
+import java.security.KeyStore
 import java.util.concurrent.TimeUnit.MILLISECONDS
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
+
+fun <K, R> (K.() -> R).andThen(block: K.() -> R): K.() -> R = k@{
+    this@andThen.invoke(this@k)
+    this.block()
+}
 
 object GRPC {
+    private val log = LoggerFactory.getLogger(GRPC::class.java)
+
     fun embeddedServer(
         vararg services: BindableService,
+        connector: EngineConnectorConfig = Connectors.default,
         module: Application.() -> Unit = {},
         configure: GRPCConfiguration.() -> Unit = {},
     ): GRPCEngine {
         val newConfigure: GRPCConfiguration.() -> Unit = {
-            grpc { services.forEach(this::addService) }
-            configure()
+            grpc {
+                services.forEach(this::addService)
+            }
         }
-        return embeddedServer(module, newConfigure)
+
+        val newApplication: Application.() -> Unit = {
+            install(ContentNegotiation)
+            module()
+        }
+
+        return GlobalScope.embeddedServer(
+            connector = connector,
+            module = newApplication,
+            configure = { newConfigure.andThen(configure).invoke(this) },
+        )
     }
 
-    fun embeddedServer(
+    object Connectors {
+        val default = http("localhost", 7777)
+
+        fun https(
+            keyStore: KeyStore,
+            keyAlias: String,
+            keyStorePassword: () -> CharArray,
+            privateKeyPassword: () -> CharArray,
+            builder: EngineSSLConnectorBuilder.() -> Unit = {},
+        ) = applicationEngineEnvironment { sslConnector(keyStore, keyAlias, keyStorePassword, privateKeyPassword, builder) }.connectors.first()
+
+        fun http(host: String, port: Int) =
+            applicationEngineEnvironment { connector { this.port = port; this.host = host; } }.connectors.first()
+    }
+
+    fun CoroutineScope.embeddedServer(
+        parentCoroutineContext: CoroutineContext = EmptyCoroutineContext,
+        connector: EngineConnectorConfig = Connectors.default,
         module: Application.() -> Unit = {},
         configure: GRPCConfiguration.() -> Unit = {},
-    ) = ktorServer(GRPCEngineFactory, configure = configure, module = module)
+    ): GRPCEngine {
+        val environment = applicationEngineEnvironment {
+            this.log = LoggerFactory.getLogger("ktor.application")
+            this.parentCoroutineContext = coroutineContext + parentCoroutineContext
+
+            connectors.add(connector)
+            module(module)
+        }
+        return GRPCEngineFactory.create(configure = configure, environment = environment)
+    }
 }
 
 object GRPCEngineFactory : ApplicationEngineFactory<GRPCEngine, GRPCConfiguration> {
     override fun create(
         environment: ApplicationEngineEnvironment,
-        configure: GRPCConfiguration.() -> Unit
-    ): GRPCEngine = GRPCEngine(environment, configure)
+        configure: GRPCConfiguration.() -> Unit,
+    ) =  GRPCEngine(environment, GRPCConfiguration().apply(configure).build())
 }
 
 @OptIn(EngineAPI::class)
 class GRPCConfiguration : BaseApplicationEngine.Configuration() {
     data class Settings(
-        val port: Int = 7777,
-        val reflection: Boolean = true,
-        val server: ServerBuilder<*>.() -> Unit = {}
+        val serverBlocks: List<ServerBuilder<*>.() -> Unit> = emptyList(),
     )
 
     private var settings = Settings()
 
     fun grpc(block: ServerBuilder<*>.() -> Unit) {
-        settings = settings.copy(server = block)
+        settings = settings.copy(serverBlocks = settings.serverBlocks + block)
     }
-
-    var port
-        get() = settings.port
-        set(value) {
-            settings = settings.copy(port = value)
-        }
-
-    var reflection
-        get() = settings.reflection
-        set(value) {
-            settings = settings.copy(reflection = value)
-        }
 
     fun build(): Settings {
         return settings
@@ -79,24 +106,19 @@ class GRPCConfiguration : BaseApplicationEngine.Configuration() {
 @OptIn(EngineAPI::class)
 class GRPCEngine(
     environment: ApplicationEngineEnvironment,
-    configure: GRPCConfiguration.() -> Unit
+    private val settings: GRPCConfiguration.Settings,
 ) : BaseApplicationEngine(environment) {
 
-    private val cfg = GRPCConfiguration().apply(configure).build()
     private lateinit var server: Server
 
+    private val log = LoggerFactory.getLogger("grpc-engine")
+
     override fun start(wait: Boolean): ApplicationEngine {
-        // Build the base configuration.
-        val s = ServerBuilder.forPort(cfg.port)
-        if (cfg.reflection) {
-            s.addService(ProtoReflectionService.newInstance())
-        }
-
-        // Run user configuration last to allow overrides.
-        cfg.server(s)
-
-        // Build the grpc server.
-        server = s.build()
+        // Build up the grpc configuration.
+        server = ServerBuilder
+            .forPort(environment.connectors.first().port)
+            .apply { settings.serverBlocks.forEach { it(this) } }
+            .build()
 
         // Start it all up!
         environment.monitor.raise(ApplicationStarting, application)
