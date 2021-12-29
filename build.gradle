@@ -1,5 +1,5 @@
 buildscript {
-    ext.kotlin_version = "1.5.31"
+    ext.kotlin_version = "1.6.10"
     ext.proto_gradle_version = "0.8.17"
 
     repositories {
@@ -36,6 +36,10 @@ kotlin { experimental { coroutines "enable" } }
 
 repositories {
     mavenCentral()
+    maven {
+        url 'https://maven.pkg.jetbrains.space/public/p/ktor/eap'
+        name 'ktor-eap'
+    }
 }
 
 ext {
@@ -55,7 +59,12 @@ dependencies {
 
     // DI
     implementation "io.insert-koin:koin-core:$koinVersion"
-    implementation 'ch.qos.logback:logback-classic:1.2.8'
+    implementation 'ch.qos.logback:logback-classic:1.2.10'
+    implementation 'io.ktor:ktor-server-netty:2.0.0-eap-256'
+    implementation 'io.ktor:ktor-server-core:1.6.7'
+    implementation 'io.ktor:ktor-gson:1.6.7'
+    implementation 'io.ktor:ktor-jackson:1.6.7'
+    testImplementation 'junit:junit:4.13.2'
 
     // R2DBC - (async jdbc)
     implementation 'com.github.jasync-sql:jasync-postgresql:2.0.4'

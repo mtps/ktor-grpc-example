@@ -1,5 +1,6 @@
 package com.github.mtps.ktor
 
+<<<<<<< Updated upstream
 import com.github.jasync.sql.db.Connection
 import com.github.jasync.sql.db.asSuspending
 import io.grpc.protobuf.services.ProtoReflectionService
@@ -20,4 +21,15 @@ fun main(args: Array<String>) {
 
         GRPC.embeddedServer(koin.get<HelloService>(), ProtoReflectionService.newInstance()).start(wait = true)
     }
+=======
+import io.grpc.protobuf.services.ProtoReflectionService
+
+fun main() {
+    val server = GRPC.embeddedServer(
+        HelloService.newInstance(),
+        ProtoReflectionService.newInstance()
+    )
+
+    server.start(wait = true)
+>>>>>>> Stashed changes
 }
