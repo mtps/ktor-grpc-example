@@ -23,6 +23,12 @@ service HelloService {
       post: "/v1/hello/{name}"
     };
   }
+
+  rpc ListHello(google.protobuf.Empty) returns (stream HelloListReply) {
+    option (google.api.http) = {
+      get: "/v1/hello"
+    };
+  }
 }
 
 message HelloRequest {
@@ -34,6 +40,11 @@ message HelloReply {
 }
 
 message HelloSaveRequest {
+  string name = 1;
+  string value = 2;
+}
+
+message HelloListReply {
   string name = 1;
   string value = 2;
 }

@@ -1,20 +1,19 @@
 package com.github.mtps.ktor
 
-import com.fasterxml.jackson.databind.*
 import io.grpc.BindableService
 import io.grpc.Server
 import io.grpc.ServerBuilder
-import io.ktor.server.application.Application
-import io.ktor.server.application.ApplicationStarted
-import io.ktor.server.application.ApplicationStarting
-import io.ktor.server.application.ApplicationStopPreparing
-import io.ktor.server.application.ApplicationStopped
-import io.ktor.server.application.ApplicationStopping
-import io.ktor.server.application.install
+import io.ktor.application.Application
+import io.ktor.application.ApplicationStarted
+import io.ktor.application.ApplicationStarting
+import io.ktor.application.ApplicationStopPreparing
+import io.ktor.application.ApplicationStopped
+import io.ktor.application.ApplicationStopping
 import io.ktor.server.engine.ApplicationEngine
 import io.ktor.server.engine.ApplicationEngineEnvironment
 import io.ktor.server.engine.ApplicationEngineFactory
 import io.ktor.server.engine.BaseApplicationEngine
+import io.ktor.server.engine.EngineAPI
 import io.ktor.server.engine.EngineConnectorConfig
 import io.ktor.server.engine.EngineSSLConnectorBuilder
 import io.ktor.server.engine.applicationEngineEnvironment
@@ -24,8 +23,7 @@ import java.security.KeyStore
 import java.util.concurrent.TimeUnit.MILLISECONDS
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.GlobalScope.coroutineContext
 import org.slf4j.LoggerFactory
 
 fun <K, R> (K.() -> R).andThen(block: K.() -> R): K.() -> R = k@{
@@ -33,61 +31,53 @@ fun <K, R> (K.() -> R).andThen(block: K.() -> R): K.() -> R = k@{
 	this.block()
 }
 
-object GRPC {
-	private val log = LoggerFactory.getLogger(GRPC::class.java)
+object Connectors {
+	val default = http("localhost", 7777)
 
+	fun https(
+		keyStore: KeyStore,
+		keyAlias: String,
+		keyStorePassword: () -> CharArray,
+		privateKeyPassword: () -> CharArray,
+		builder: EngineSSLConnectorBuilder.() -> Unit = {},
+	) = applicationEngineEnvironment {
+		sslConnector(
+			keyStore,
+			keyAlias,
+			keyStorePassword,
+			privateKeyPassword,
+			builder
+		)
+	}.connectors.first()
+
+	fun http(host: String, port: Int) =
+		applicationEngineEnvironment {
+			connector {
+				this.port = port
+				this.host = host
+			}
+		}.connectors.first()
+}
+
+object GRPC {
 	fun embeddedServer(
-		vararg services: BindableService,
+		services: List<BindableService>,
 		connector: EngineConnectorConfig = Connectors.default,
 		module: Application.() -> Unit = {},
 		configure: GRPCConfiguration.() -> Unit = {},
 	): GRPCEngine {
 		val newConfigure: GRPCConfiguration.() -> Unit = {
-			grpc {
-				services.forEach(this::addService)
-			}
+			grpc { services.forEach(::addService) }
 		}
 
-		val newApplication: Application.() -> Unit = {
-			module()
-		}
-
-		return GlobalScope.embeddedServer(
+		return embeddedKtorServer(
 			connector = connector,
-			module = newApplication,
+			module = module,
 			configure = { newConfigure.andThen(configure).invoke(this) },
 		)
 	}
 
-	object Connectors {
-		val default = http("localhost", 7777)
-
-		fun https(
-			keyStore: KeyStore,
-			keyAlias: String,
-			keyStorePassword: () -> CharArray,
-			privateKeyPassword: () -> CharArray,
-			builder: EngineSSLConnectorBuilder.() -> Unit = {},
-		) = applicationEngineEnvironment {
-			sslConnector(
-				keyStore,
-				keyAlias,
-				keyStorePassword,
-				privateKeyPassword,
-				builder
-			)
-		}.connectors.first()
-
-		fun http(host: String, port: Int) =
-			applicationEngineEnvironment {
-				connector {
-					this.port = port
-					this.host = host
-				}
-			}.connectors.first()
-	}
-
-	fun CoroutineScope.embeddedServer(
+	private fun embeddedKtorServer(
 		parentCoroutineContext: CoroutineContext = EmptyCoroutineContext,
 		connector: EngineConnectorConfig = Connectors.default,
 		module: Application.() -> Unit = {},
@@ -108,9 +98,12 @@ object GRPCEngineFactory : ApplicationEngineFactory<GRPCEngine, GRPCConfiguratio
 	override fun create(
 		environment: ApplicationEngineEnvironment,
 		configure: GRPCConfiguration.() -> Unit,
-	) = GRPCEngine(environment, GRPCConfiguration().apply(configure).build())
+	): GRPCEngine {
+		return GRPCEngine(environment, GRPCConfiguration().apply(configure).build())
+	}
 }
 
+@OptIn(EngineAPI::class)
 class GRPCConfiguration : BaseApplicationEngine.Configuration() {
 	data class Settings(
 		val serverBlocks: List<ServerBuilder<*>.() -> Unit> = emptyList(),
@@ -127,6 +120,7 @@ class GRPCConfiguration : BaseApplicationEngine.Configuration() {
 	}
 }
 
+@OptIn(EngineAPI::class)
 class GRPCEngine(
 	environment: ApplicationEngineEnvironment,
 	private val settings: GRPCConfiguration.Settings,
@@ -134,12 +128,11 @@ class GRPCEngine(
 
 	private lateinit var server: Server
 
-	private val log = LoggerFactory.getLogger("grpc-engine")
-
 	override fun start(wait: Boolean): ApplicationEngine {
+		val port = environment.connectors.first().port
 		// Build up the grpc configuration.
 		server = ServerBuilder
-			.forPort(environment.connectors.first().port)
+			.forPort(port)
 			.apply { settings.serverBlocks.forEach { it(this) } }
 			.build()
 

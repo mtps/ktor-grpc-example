@@ -1,16 +1,19 @@
 package com.github.mtps.ktor
 
 import com.google.protobuf.Empty
+import example.Example.HelloListReply
 import example.Example.HelloReply
 import example.Example.HelloRequest
+import example.Example.HelloSaveRequest
 import example.HelloServiceGrpcKt.HelloServiceCoroutineImplBase
-import io.ktor.server.plugins.NotFoundException
+import io.ktor.features.NotFoundException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
 
 class HelloService(private val helloRepository: HelloRepository) : HelloServiceCoroutineImplBase() {
     companion object {
-        fun newInstance() = HelloService()
+        fun newInstance(helloRepository: HelloRepository) = HelloService(helloRepository)
     }
 
     private suspend fun reply(request: HelloRequest): HelloReply {
@@ -33,5 +36,14 @@ class HelloService(private val helloRepository: HelloRepository) : HelloServiceC
     override suspend fun saveHello(request: HelloSaveRequest): Empty {
         helloRepository.set(request.name, request.value)
         return Empty.getDefaultInstance()
+    }
+
+    override fun listHello(request: Empty): Flow<HelloListReply> {
+        return helloRepository.iterator().asFlow().map { p ->
+            HelloListReply.newBuilder().also {
+                it.name = p.first
+                it.value = p.second
+            }.build()
+        }
     }
 }
