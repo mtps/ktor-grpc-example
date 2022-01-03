@@ -134,6 +134,7 @@ class GRPCEngine(
 		server = ServerBuilder
 			.forPort(port)
 			.apply { settings.serverBlocks.forEach { it(this) } }
+			.intercept(ExceptionInterceptor())
 			.build()
 
 		// Start it all up!

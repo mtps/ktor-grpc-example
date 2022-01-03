@@ -7,11 +7,16 @@ import example.Example.HelloRequest
 import example.Example.HelloSaveRequest
 import example.HelloServiceGrpcKt.HelloServiceCoroutineImplBase
 import io.ktor.features.NotFoundException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
 
-class HelloService(private val helloRepository: HelloRepository) : HelloServiceCoroutineImplBase() {
+class HelloService(
+    private val helloRepository: HelloRepository,
+    coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : HelloServiceCoroutineImplBase(coroutineContext) {
     companion object {
         fun newInstance(helloRepository: HelloRepository) = HelloService(helloRepository)
     }

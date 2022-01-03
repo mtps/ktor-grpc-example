@@ -16,10 +16,16 @@ import org.koin.dsl.module
 import org.koin.logger.SLF4JLogger
 import org.slf4j.LoggerFactory
 
-val helloModule = module {
+val helloDbModule = module {
 	single { dbConnection.connect().get(10, TimeUnit.SECONDS) }
 	factory { get<Connection>().asSuspending }
+	single<HelloRepository> { HelloPGRepository(get()) }
+	single { HelloService.newInstance(get()) }
+}
+
+val helloInMemoryModule = module {
 	single<HelloRepository> { HelloMapRepository() }
+	single { HelloService.newInstance(get()) }
 }
 
 var org.slf4j.Logger.level: ch.qos.logback.classic.Level
@@ -30,14 +36,13 @@ typealias KtorModule = Application.() -> Unit
 
 fun main(args: Array<String>) {
 	startKoin() {
-
 		LoggerFactory.getLogger("io.grpc.netty").level = ERROR
 		LoggerFactory.getLogger("io.netty").level = ERROR
 
+		// Hacky workaround for missing duration function sig.
 		logger(SLF4JLogger(Level.ERROR))
-		//printLogger(Level.ERROR)
-
-		modules(helloModule)
+		modules(helloDbModule)
+		logger(SLF4JLogger(Level.INFO))
 
 		val grpcServices = listOf(
 			HelloService.newInstance(koin.get()),
